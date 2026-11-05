@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # MongoDB for Network State, Outages, Alerts, and Signatures
+  mongodb:
+    image: mongo:7.0
+    container_name: netpulse-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=netpulse
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - netpulse-net
+
+  # Hadoop NameNode (HDFS)
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: netpulse-namenode
+    restart: always
+    ports:
+      - "9870:9870"
+      - "9000:9000"
+    environment:
+      - CLUSTER_NAME=netpulse-cluster
+    env_file:
+      - ./hdfs/hadoop.env
+    volumes:
+      - hadoop_namenode:/hadoop/dfs/name
+    networks:
+      - netpulse-net
+
+  # Hadoop DataNode (HDFS)
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: netpulse-datanode
+    restart: always
+    depends_on:
+      - namenode
+    ports:
+      - "9864:9864"
+    volumes:
+      - hadoop_datanode:/hadoop/dfs/data
+    env_file:
+      - ./hdfs/hadoop.env
+    networks:
+      - netpulse-net
+
+  # Apache Hive Metastore & Server
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: netpulse-hive
+    restart: always
+    depends_on:
+      - namenode
+      - datanode
+    ports:
+      - "10000:10000"
+      - "10002:10002"
+    environment:
+      - HIVE_CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    networks:
+      - netpulse-net
+
+volumes:
+  mongo_data:
+  hadoop_namenode:
+  hadoop_datanode:
+
+networks:
+  netpulse-net:
+    driver: bridge
